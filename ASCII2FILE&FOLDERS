@@ -1,0 +1,162 @@
+import tkinter as tk
+from tkinter import ttk, scrolledtext, filedialog, messagebox
+import os
+
+class TreeConverterGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("ASCII Tree to Files Converter")
+        self.root.geometry("800x600")
+        
+        # Configure grid weights
+        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(1, weight=1)
+        
+        self.create_widgets()
+        self.paths = []
+        
+    def create_widgets(self):
+        # Input frame
+        input_frame = ttk.LabelFrame(self.root, text="ASCII Tree Input", padding="5")
+        input_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        
+        # Example button
+        self.example_btn = ttk.Button(input_frame, text="Load Example", command=self.load_example)
+        self.example_btn.pack(side=tk.RIGHT, padx=5)
+        
+        # Clear button
+        self.clear_btn = ttk.Button(input_frame, text="Clear", command=self.clear_input)
+        self.clear_btn.pack(side=tk.RIGHT, padx=5)
+        
+        # Input text area
+        self.input_text = scrolledtext.ScrolledText(self.root, height=15, wrap=tk.NONE)
+        self.input_text.grid(row=1, column=0, sticky="nsew", padx=5)
+        
+        # Preview text area
+        self.preview_text = scrolledtext.ScrolledText(self.root, height=15, wrap=tk.NONE)
+        self.preview_text.grid(row=1, column=1, sticky="nsew", padx=5)
+        
+        # Bottom frame for buttons
+        bottom_frame = ttk.Frame(self.root, padding="5")
+        bottom_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        
+        # Preview button
+        self.preview_btn = ttk.Button(bottom_frame, text="Generate Preview", command=self.preview_paths)
+        self.preview_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Output directory selection
+        self.output_dir = tk.StringVar(value=os.getcwd())
+        ttk.Label(bottom_frame, text="Output Directory:").pack(side=tk.LEFT, padx=5)
+        self.dir_entry = ttk.Entry(bottom_frame, textvariable=self.output_dir, width=50)
+        self.dir_entry.pack(side=tk.LEFT, padx=5)
+        
+        # Browse button
+        self.browse_btn = ttk.Button(bottom_frame, text="Browse", command=self.browse_output)
+        self.browse_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Create files button
+        self.create_btn = ttk.Button(bottom_frame, text="Create Files", command=self.create_files)
+        self.create_btn.pack(side=tk.LEFT, padx=5)
+        
+    def parse_tree_to_paths(self, tree_text):
+        lines = tree_text.strip().split('\n')
+        if not lines:
+            return []
+            
+        root = lines[0].strip()
+        paths = []
+        stack = []
+        last_indent = -1
+        
+        # Process root directory
+        stack.append(root)
+        
+        # Process remaining lines
+        for line in lines[1:]:
+            # Count the indent level based on the special characters
+            indent = line.count('│   ') + line.count('    ')
+            
+            # Extract the actual name (remove tree characters)
+            name = line.strip().split('└── ')[-1].split('├── ')[-1]
+            
+            # Adjust the stack based on indent level
+            if indent <= last_indent:
+                for _ in range(last_indent - indent + 1):
+                    stack.pop()
+            
+            # Add current item to stack
+            stack.append(name)
+            
+            # If it's a file (contains a dot), add to paths
+            if '.' in name:
+                paths.append(os.path.join(*stack))
+            
+            last_indent = indent
+        
+        return paths
+    
+    def load_example(self):
+        example = """project_root
+├── docs
+│   ├── user_guide.pdf
+│   └── api_reference.md
+├── src
+│   ├── main.py
+│   ├── utils
+│   │   ├── helpers.py
+│   │   └── config.py
+│   └── tests
+│       ├── test_main.py
+│       └── test_utils.py
+├── data
+│   ├── raw_data.csv
+│   └── processed_data.json
+├── README.md
+└── requirements.txt"""
+        self.input_text.delete('1.0', tk.END)
+        self.input_text.insert('1.0', example)
+    
+    def clear_input(self):
+        self.input_text.delete('1.0', tk.END)
+        self.preview_text.delete('1.0', tk.END)
+    
+    def preview_paths(self):
+        tree_text = self.input_text.get('1.0', tk.END)
+        try:
+            self.paths = self.parse_tree_to_paths(tree_text)
+            self.preview_text.delete('1.0', tk.END)
+            self.preview_text.insert('1.0', "Generated file paths:\n" + "-" * 50 + "\n")
+            for path in self.paths:
+                self.preview_text.insert(tk.END, f"{path}\n")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error parsing tree: {str(e)}")
+    
+    def browse_output(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            self.output_dir.set(directory)
+    
+    def create_files(self):
+        if not self.paths:
+            messagebox.showwarning("Warning", "Please generate a preview first!")
+            return
+            
+        try:
+            base_dir = self.output_dir.get()
+            for path in self.paths:
+                full_path = os.path.join(base_dir, path)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                with open(full_path, 'a'):
+                    pass
+            messagebox.showinfo("Success", "Files and directories created successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error creating files: {str(e)}")
+
+def main():
+    root = tk.Tk()
+    app = TreeConverterGUI(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
